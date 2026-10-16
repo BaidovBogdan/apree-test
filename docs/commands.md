@@ -12,6 +12,7 @@
 | Разработка | npm run dev |
 | Контракты | npm run test:contracts |
 | API и PostgreSQL | npm run test:api |
+| Ожидание пробуждения API | npm run test:web |
 | Все проверки логики | npm test |
 | Типы | npm run typecheck |
 | Production build | npm run build |
