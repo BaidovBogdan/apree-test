@@ -4,10 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DragCancelEvent, DragEndEvent, DragStartEvent, DropAnimationFunction } from '@dnd-kit/core';
 import { statuses, type Status, type Task } from '@apree/contracts';
 
-const dropDuration = 280;
-type Drop = { pending: Promise<void>; animation?: Animation; fallback?: ReturnType<typeof setTimeout> };
+const dropDuration = 180;
+type Drop = { animation?: Animation; fallback?: ReturnType<typeof setTimeout> };
 
-export function useBoardDrag(items: Task[], move: (task: Task, status: Status) => Promise<void>, reducedMotion: boolean) {
+export function useBoardDrag(items: Task[], move: (task: Task, status: Status) => void, reducedMotion: boolean) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [landingId, setLandingId] = useState<string | null>(null);
   const currentDrop = useRef<Drop | null>(null);
@@ -37,49 +37,51 @@ export function useBoardDrag(items: Task[], move: (task: Task, status: Status) =
     if (mounted.current) setLandingId(null);
   }, []);
 
-  function settle(id: string, pending: Promise<void>) {
-    const drop: Drop = { pending: pending.catch(() => undefined) };
+  function settle(id: string) {
+    const drop: Drop = {};
     currentDrop.current = drop;
     setLandingId(id);
     setActiveTask(null);
-    void drop.pending.then(() => {
-      if (currentDrop.current !== drop) return;
-      drop.fallback = setTimeout(() => finish(drop), (reducedMotion ? 0 : dropDuration) + 200);
-    });
+    drop.fallback = setTimeout(() => finish(drop), (reducedMotion ? 0 : dropDuration * 2) + 200);
   }
 
   function end(event: DragEndEvent) {
     const task = items.find((item) => item.id === event.active.id);
     const target = event.over?.id;
-    const pending = task && typeof target === 'string' && statuses.includes(target as Status)
-      ? move(task, target as Status)
-      : Promise.resolve();
-    settle(String(event.active.id), pending);
+    settle(String(event.active.id));
+    if (task && typeof target === 'string' && statuses.includes(target as Status)) move(task, target as Status);
   }
 
   function cancel(event: DragCancelEvent) {
-    settle(String(event.active.id), Promise.resolve());
+    settle(String(event.active.id));
   }
 
   const dropAnimation = useCallback<DropAnimationFunction>(async ({ active, dragOverlay, draggableNodes }) => {
     const drop = currentDrop.current;
     if (!drop) return;
     try {
-      await drop.pending;
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       if (!mounted.current || currentDrop.current !== drop || !dragOverlay.node.isConnected) return;
-      const target = draggableNodes.get(active.id)?.node.current;
-      const targetRect = target?.getBoundingClientRect();
-      const overlayRect = dragOverlay.node.getBoundingClientRect();
-      const keyframes = targetRect && targetRect.width > 0 && targetRect.height > 0
-        ? [{ translate: '0px 0px', opacity: 1 }, { translate: `${targetRect.left - overlayRect.left}px ${targetRect.top - overlayRect.top}px`, opacity: 1 }]
-        : [{ opacity: 1 }, { opacity: 0 }];
-      drop.animation = dragOverlay.node.animate(keyframes, {
-        duration: reducedMotion ? 0 : dropDuration,
-        easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
-        fill: 'forwards',
-      });
-      await drop.animation.finished.catch(() => undefined);
+      const origin = dragOverlay.node.getBoundingClientRect();
+      let translate = '0px 0px';
+      for (let pass = 0; pass < 2; pass++) {
+        const targetRect = draggableNodes.get(active.id)?.node.current?.getBoundingClientRect();
+        const destination = targetRect && targetRect.width > 0 && targetRect.height > 0
+          ? `${targetRect.left - origin.left}px ${targetRect.top - origin.top}px`
+          : null;
+        if (pass > 0 && destination === translate) break;
+        drop.animation = dragOverlay.node.animate([
+          { translate, opacity: 1 },
+          { translate: destination ?? translate, opacity: destination ? 1 : 0 },
+        ], {
+          duration: reducedMotion ? 0 : dropDuration,
+          easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+          fill: 'forwards',
+        });
+        await drop.animation.finished.catch(() => undefined);
+        if (!mounted.current || currentDrop.current !== drop || !destination) break;
+        translate = destination;
+      }
     } catch {
       return;
     } finally {
