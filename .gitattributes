@@ -1,0 +1,8 @@
+* text=auto eol=lf
+.agents/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+.specify/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.zip binary
