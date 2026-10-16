@@ -1,0 +1,9 @@
+[build]
+  command = "npm run build -w @apree/contracts && npm run build -w @apree/web"
+  publish = "apps/web/.next"
+
+[build.environment]
+  NODE_VERSION = "24"
+  NPM_FLAGS = "--include=dev"
+  NEXT_TELEMETRY_DISABLED = "1"
+  NEXT_PUBLIC_API_WAKEUP = "true"

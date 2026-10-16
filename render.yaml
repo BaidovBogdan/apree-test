@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: apree-workspace-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci --include=dev && npm run build -w @apree/contracts && npm run build -w @apree/api
+    startCommand: node scripts/migrate.mjs && node apps/api/dist/src/main.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: API_PORT
+        value: "10000"
+      - key: DATABASE_URL
+        sync: false

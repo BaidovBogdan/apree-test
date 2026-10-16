@@ -1,4 +1,5 @@
 import { createTaskSchema, taskListSchema, taskSchema, type CreateTask, type Task, type UpdateTask } from '@apree/contracts';
+import { retryRead } from './retry-read';
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -35,7 +36,15 @@ async function request(path: string, options: RequestInit = {}) {
 
 export const api = {
   async list(signal: AbortSignal) {
-    return taskListSchema.parse(await request('/tasks', { signal }));
+    const read = async (activeSignal: AbortSignal) => taskListSchema.parse(await request('/tasks', { signal: activeSignal }));
+    if (process.env.NEXT_PUBLIC_API_WAKEUP !== 'true') return read(signal);
+    try {
+      return await retryRead(read, signal, (error) => error instanceof ApiError && [0, 502, 503, 504].includes(error.status));
+    } catch (error) {
+      if (signal.aborted) throw error;
+      if (error instanceof DOMException && error.name === 'TimeoutError') throw new ApiError('Сервер пока не отвечает. Попробуйте подключиться ещё раз.', 0);
+      throw error;
+    }
   },
   async create(data: CreateTask) {
     return taskSchema.parse(await request('/tasks', { method: 'POST', body: JSON.stringify(createTaskSchema.parse(data)) }));

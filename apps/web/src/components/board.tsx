@@ -40,7 +40,7 @@ function Column({ status, children, count, total, active, onAdd, busy }: { statu
 
 export function Board() {
   const client = useQueryClient();
-  const query = useQuery({ queryKey: ['tasks'], queryFn: ({ signal }) => api.list(signal) });
+  const query = useQuery({ queryKey: ['tasks'], queryFn: ({ signal }) => api.list(signal), retry: process.env.NEXT_PUBLIC_API_WAKEUP === 'true' ? false : 1 });
   const [search, setSearch] = useState('');
   const [priority, setPriority] = useState<Priority | 'all'>('all');
   const [activeStatus, setActiveStatus] = useState<Status>('new');
